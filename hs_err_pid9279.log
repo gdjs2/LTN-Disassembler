@@ -1,0 +1,30 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x000076207240fe8f, pid=9279, tid=9766
+#
+# JRE version: OpenJDK Runtime Environment (21.0.7+6) (build 21.0.7+6-Ubuntu-0ubuntu122.04)
+# Java VM: OpenJDK 64-Bit Server VM (21.0.7+6-Ubuntu-0ubuntu122.04, mixed mode, tiered, compressed oops, compressed class ptrs, g1 gc, linux-amd64)
+# Problematic frame:
+# C  [libtorch_cpu.so+0x160fe8f]  at::accelerator::getAccelerator(bool)+0x3f
+#
+# Core dump will be written. Default location: Core dumps may be processed with "/usr/share/apport/apport -p%p -s%s -c%c -d%d -P%P -u%u -g%g -- %E" (or dumping to /home/zhaoqi.xiao/Projects/ltn-ghidra/core.9279)
+#
+# If you would like to submit a bug report, please visit:
+#   https://bugs.launchpad.net/ubuntu/+source/openjdk-21
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: -Dpyghidra.sys.prefix=/home/zhaoqi.xiao/.pyenv/versions/3.12.2/envs/ltn-ghidra -Dpyghidra.sys.executable=/home/zhaoqi.xiao/.pyenv/versions/3.12.2/envs/ltn-ghidra/bin/python3 -Djava.system.class.loader=ghidra.GhidraClassLoader -Dfile.encoding=UTF8 -Duser.country=US -Duser.language=en -Duser.variant= -Dsun.java2d.opengl=false -Dsun.java2d.pmoffscreen=false -Dsun.java2d.xrender=true -Dsun.java2d.uiScale=1 -Dawt.useSystemAAFontSettings=on -Djdk.tls.client.protocols=TLSv1.2,TLSv1.3 -Dcpu.core.limit= -Dcpu.core.override= -Dfont.size.override= -Dpython.console.encoding=UTF-8 -Xshare:off 
+
+Host: Intel(R) Xeon(R) CPU @ 2.20GHz, 8 cores, 29G, Ubuntu 22.04.5 LTS
+Time: Fri May 23 12:05:33 2025 PDT elapsed time: 39.570583 seconds (0d 0h 0m 39s)
+
+---------------  T H R E A D  ---------------
+
+Current thread is native thread
+
+Stack: [0x0000761e5cc41000,0x0000761e5d441000],  sp=0x0000761e5d43f320,  free space=8184k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [libtorch_cpu.so+0x160fe8f]  at::accelerator::getAccelerator(bool)+0x3f

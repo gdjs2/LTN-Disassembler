@@ -1,0 +1,1 @@
+export GHIDRA_INSTALL_DIR=/opt/ghidra_11.3.2_PUBLIC
