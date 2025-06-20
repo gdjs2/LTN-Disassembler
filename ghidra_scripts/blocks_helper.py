@@ -4,7 +4,7 @@ if not pyghidra.started():
     pyghidra.start()
 
 from loguru import logger
-
+from ghidra.program.model.address import Address
 from ghidra.program.model.pcode import PcodeOp
 from ghidra.program.model.listing import Instruction, Data
 from ghidra.program.model.scalar import Scalar
@@ -34,14 +34,28 @@ class Block:
         self.high_zero_rate_flg = None
         self.high_def_use_rate_flg = None
 
-        self.feature_vector = []
+        self.feature_vector = None
         self.pseudo_instrs = None
 
     def __repr__(self):
-        return f"{self.type}Block [{self.start_address} - {self.end_address}] [{self.section_name}] cond_branch_flg: [{self.cond_branch_flg}] def_use_flg: [{self.def_use_flg}] very_short_flg: [{self.very_short_flg}] high_zero_rate_flg: [{self.high_zero_rate_flg}] high_def_use_rate_flg: [{self.high_def_use_rate_flg}] [{self.feature_vector}]"
+        return (
+            f"{self.type}Block:\n"
+            f"  Address Range : [{self.start_address} - {self.end_address}]\n"
+            f"  Section       : [{self.section_name}]\n"
+            f"  Flags:\n"
+            f"    cond_branch        : {self.cond_branch_flg}\n"
+            f"    def_use            : {self.def_use_flg}\n"
+            f"    very_short         : {self.very_short_flg}\n"
+            f"    high_zero_rate     : {self.high_zero_rate_flg}\n"
+            f"    high_def_use_rate  : {self.high_def_use_rate_flg}\n"
+            f"  Feature Vector: {self.feature_vector}"
+        )
+
 
     def __str__(self):
-        return self.__repr__()
+        return (
+            f"{self.type}Block @ [{self.start_address} - {self.end_address}]"
+        )
 
 def extract_code_blocks(listing, memory):
     code_blocks = []
@@ -110,33 +124,9 @@ def extract_data_blocks(listing, memory):
             blk_start_addr = None
     return data_blocks
 
-def extract_unknown_blocks(memory, blocks):
-    unknown_blocks = []
-    blocks.sort(key=lambda b: b.start_address)
-
-    for i in range(len(blocks) - 1):
-        current_block = blocks[i]
-        next_block = blocks[i + 1]
-
-        if current_block.section_name == next_block.section_name:
-            if current_block.end_address.add(1) == next_block.start_address:
-                continue
-            elif current_block.end_address.add(1).compareTo(next_block.start_address) < 0:
-                unknown_start = current_block.end_address.add(1)
-                unknown_end = next_block.start_address.subtract(1)
-                block = Block(unknown_start, unknown_end, "Unknown", memory.getBlock(unknown_start).getName())
-                unknown_blocks.append(block)
-            else:
-                # logger.warning(f"Invalid block order: {current_block} -> {next_block}")
-                pass
-        else:
-            pass
-
-    return unknown_blocks
-
 def pseudo_disassemble_blocks(blocks, program):
     """
-    Pseudo disassemble the blocks using the PseudoDisassembler, default in ARM mode.
+    Pseudo disassemble the blocks using the PseudoDisassembler, default in ARM mode (SEE TODO).
     """
     pseudo_disassembler = PseudoDisassembler(program)
     for block in blocks:
@@ -149,25 +139,20 @@ def pseudo_disassemble_blocks(blocks, program):
         addr = block.start_address
         while addr <= block.end_address:
             instr = pseudo_disassembler.disassemble(addr, ctx, False)
+            instrs.append(instr)
             if instr is not None:
-                # logger.warning(f"Cannot pseudo-disassemble instruction at {addr}, ignore the whole block.")
-                # instrs = None
-                # break
-                # continue
-                instrs.append(instr)
                 addr = instr.getMaxAddress().next()
             else:
-                addr = addr.add(4)
+                addr = addr.add(4) # TODO: double check here
         block.pseudo_instrs = instrs
 
 def get_string_number(block, refs, listing):
     """
     Get the string number of the block.
     """
-    if block.pseudo_instrs is None:
-        return 0
     string_number = 0
     for instr in block.pseudo_instrs:
+        if instr is None: continue
         addr = instr.getAddress()
         references = refs.getReferencesFrom(addr)
         for ref in references:
@@ -181,10 +166,9 @@ def get_num_constant(block):
     """
     Get the number of constant values in the block.
     """
-    if block.pseudo_instrs is None:
-        return 0
     constant_count = 0
     for instr in block.pseudo_instrs:
+        if instr is None: continue
         for i in range(instr.getNumOperands()):
             objs = instr.getOpObjects(i)
             for obj in objs:
@@ -196,10 +180,9 @@ def get_transfer_number(block):
     """
     Get the number of transfer instructions in the block.
     """
-    if block.pseudo_instrs is None:
-        return 0
     transfer_count = 0
     for instr in block.pseudo_instrs:
+        if instr is None: continue
         if instr.getFlowType().isCall() or instr.getFlowType().isJump() or instr.getFlowType().isTerminal():
             transfer_count += 1
     return transfer_count
@@ -208,10 +191,9 @@ def get_call_number(block):
     """
     Get the number of call instructions in the block.
     """
-    if block.pseudo_instrs is None:
-        return 0
     call_count = 0
     for instr in block.pseudo_instrs:
+        if instr is None: continue
         if instr.getFlowType().isCall():
             call_count += 1
     return call_count
@@ -220,16 +202,15 @@ def get_instr_number(block):
     """
     Get the number of instructions in the block.
     """
-    return len(block.pseudo_instrs) if block.pseudo_instrs else 0
+    return sum(i is not None for i in block.pseudo_instrs)
 
 def get_arithmetic_number(block):
     """
     Get the number of arithmetic instructions in the block.
     """
-    if block.pseudo_instrs is None:
-        return 0
     arithmetic_count = 0
     for instr in block.pseudo_instrs:
+        if instr is None: continue
         pcode_ops = instr.getPcode()
         for op in pcode_ops:
             if op.getOpcode() in ARITHMETIC_OPCODES:
@@ -254,11 +235,10 @@ def get_zero_bytes_number(block, memory):
     return zero_bytes_cnt
 
 def get_def_use_number(block):
-    if block.pseudo_instrs is None:
-        return 0
     def_use_cnt = 0
     defs = []
     for instr in block.pseudo_instrs:
+        if instr is None: continue
         pcode_ops = instr.getPcode()
         instr_def = []
         for op in pcode_ops:
@@ -279,30 +259,30 @@ def get_feature_vector(blocks, psuedo_disassembler: PseudoDisassembler, refs, li
     """
     Get the feature vector for each block.
     """
-    avg = [0, 0, 0, 0, 0, 0, 0, 0]
     for block in blocks:
-        string_number = get_string_number(block, refs, listing)
-        block.feature_vector.append(string_number / block.end_address.subtract(block.start_address))
-        block.feature_vector.append(get_num_constant(block) / block.end_address.subtract(block.start_address))
-        block.feature_vector.append(get_transfer_number(block) / block.end_address.subtract(block.start_address))
-        block.feature_vector.append(get_call_number(block) / block.end_address.subtract(block.start_address))
-        block.feature_vector.append(get_instr_number(block) / block.end_address.subtract(block.start_address))
-        block.feature_vector.append(get_arithmetic_number(block) / block.end_address.subtract(block.start_address))
-        block.feature_vector.append(get_zero_bytes_number(block, memory) / block.end_address.subtract(block.start_address))
-        block.feature_vector.append(get_def_use_number(block) / block.end_address.subtract(block.start_address))
+        block_size = block.end_address.subtract(block.start_address)
+        feature_vec = [
+            get_string_number(block, refs, listing) / block_size,
+            get_num_constant(block) / block_size,
+            get_transfer_number(block) / block_size,
+            get_call_number(block) / block_size,
+            get_instr_number(block) / block_size,
+            get_arithmetic_number(block) / block_size,
+            get_zero_bytes_number(block, memory) / block_size,
+            get_def_use_number(block) / block_size
+        ]
+        block.feature_vector = feature_vec
 
 def check_compare_branch(blocks, pseudo_disassembler: PseudoDisassembler, program):
     """
     Check conditional branches in the blocks following a comparison instructions.
     """
     for block in blocks:
-        if not block.pseudo_instrs:
-            # logger.warning(f"Block {block} has no pseudo instructions.")
-            continue
         instrs = block.pseudo_instrs[::-1]  # Reverse the order to check from the end
         first_instr = instrs[0]
-        if first_instr.getFlowType().isConditional():
-            # logger.debug(f"Block {block} has a conditional branch.")
+        if first_instr is None:
+            block.cond_branch_flg = None
+        elif first_instr.getFlowType().isConditional():
             # Check if the second instruction is a comparison
             detect_comp_flg = False
             for instr in instrs[1:]:
@@ -311,32 +291,28 @@ def check_compare_branch(blocks, pseudo_disassembler: PseudoDisassembler, progra
                     detect_comp_flg = True
                     break
             block.cond_branch_flg = detect_comp_flg
-        else:
-            pass
     return
 
-def check_def_use(blocks, psuedo_disassembler: PseudoDisassembler):
-    for block in blocks:
-        if block.type == "Code" or not block.pseudo_instrs:
-            continue
-
-        instrs = block.pseudo_instrs
-        defs = {}
-        for i, instr in enumerate(instrs):
-            pcode_ops = instr.getPcode()
-            instr_def = []
-            for op in pcode_ops:
-                if op.getOpcode() == PcodeOp.STORE:
-                    uses = op.getInputs()
-                    for use in uses:
-                        if use in defs and i - defs[use] <= 16:
-                            block.def_use_flg = True
-                            break
-                if op.getOpcode() in [PcodeOp.COPY, PcodeOp.LOAD]:
-                    instr_def.append(op.getOutput())
-            for d in instr_def:
-                defs[d] = i
-    return
+# def check_def_use(blocks, psuedo_disassembler: PseudoDisassembler):
+#     for block in blocks:
+#         if block.type == "Code": continue
+#         instrs = block.pseudo_instrs
+#         defs = {}
+#         for i, instr in enumerate(instrs):
+#             pcode_ops = instr.getPcode()
+#             instr_def = []
+#             for op in pcode_ops:
+#                 if op.getOpcode() == PcodeOp.STORE:
+#                     uses = op.getInputs()
+#                     for use in uses:
+#                         if use in defs and i - defs[use] <= 16:
+#                             block.def_use_flg = True
+#                             break
+#                 if op.getOpcode() in [PcodeOp.COPY, PcodeOp.LOAD]:
+#                     instr_def.append(op.getOutput())
+#             for d in instr_def:
+#                 defs[d] = i
+#     return
 
 def check_very_short(blocks):
     """
@@ -350,14 +326,12 @@ def check_very_short(blocks):
             block.very_short_flg = False
     return
 
-def fix_undisassembled_data_blocks(blocks):
-    for block in blocks:
-        if block.pseudo_instrs is None:
-            block.type = "FixedData"
+# def fix_undisassembled_data_blocks(blocks):
+#     for block in blocks:
+#         if block.pseudo_instrs is None:
+#             block.type = "FixedData"
 
 if __name__ == "__main__":
-    logger.remove()
-    logger.add("blocks_helper.log")
     with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/108.58.252.74.PRG', language='ARM:LE:32:Cortex') as flat_api:
     # with pyghidra.open_program("/home/zhaoqi.xiao/Projects/ghidra-ic/Binaries/xmltest") as flat_api:
         program = flat_api.getCurrentProgram()
@@ -367,19 +341,18 @@ if __name__ == "__main__":
 
         code_blocks = extract_code_blocks(listing, memory)
         data_blocks = extract_data_blocks(listing, memory)
-        # unknown_blocks = extract_unknown_blocks(memory, code_blocks + data_blocks)
 
         blocks = [*code_blocks, *data_blocks]
         blocks.sort(key=lambda b: b.start_address)
 
         pseudo_disassemble_blocks(blocks, program)
 
-        # get_feature_vector(blocks, PseudoDisassembler(program), program.getReferenceManager(), listing, memory)
+        get_feature_vector(blocks, PseudoDisassembler(program), program.getReferenceManager(), listing, memory)
+        check_compare_branch(blocks, PseudoDisassembler(program), program)
+        check_very_short(blocks)
+
         # check_def_use(blocks, PseudoDisassembler(program))
-
-        # check_compare_branch(blocks, PseudoDisassembler(program), program)
-        # check_def_use(blocks, listing)
-
         with open('blocks.txt', 'w') as f:
             for block in blocks:
                 f.write(f"{block}\n")
+        logger.info(f"Extracted {len(blocks)} blocks from the program, exported to blocks.txt")
