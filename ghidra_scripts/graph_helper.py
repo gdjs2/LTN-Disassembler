@@ -39,7 +39,7 @@ def _bisearch_addr_in_blocks(blocks: List, addr):
             right = mid
         elif addr > blocks[mid].end_address:
             left = mid + 1
-    logger.error(f"Address {addr} not found in blocks. May be a external reference.")
+    # logger.error(f"Address {addr} not found in blocks. May be a external reference.")
     return None
 
 def _get_call_edges(blocks: List, listing):
@@ -71,10 +71,10 @@ def create_graph(flat_api):
     listing = program.getListing()
     memory = program.getMemory()
 
-    code_blocks = extract_code_blocks(function_manager, listing, memory)
+    code_blocks = extract_code_blocks(listing, memory)
     data_blocks = extract_data_blocks(listing, memory)
-    unknown_blocks = extract_unknown_blocks(memory, code_blocks + data_blocks)
-    blocks = [*code_blocks, *data_blocks, *unknown_blocks]
+    # unknown_blocks = extract_unknown_blocks(memory, code_blocks + data_blocks)
+    blocks = [*code_blocks, *data_blocks]
 
     fall_through_edges = _get_fallthrough_edges(blocks)
     call_edges = _get_call_edges(blocks, listing)
