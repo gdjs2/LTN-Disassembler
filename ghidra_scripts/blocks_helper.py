@@ -58,7 +58,7 @@ class Block:
         )
 
 def extract_code_blocks(listing, memory):
-    code_blocks = []
+    code_blocks = [] 
 
     for mmry_blk in memory.getBlocks():
         addr = mmry_blk.getStart()
@@ -273,7 +273,7 @@ def get_feature_vector(blocks, psuedo_disassembler: PseudoDisassembler, refs, li
         ]
         block.feature_vector = feature_vec
 
-def check_compare_branch(blocks, pseudo_disassembler: PseudoDisassembler, program):
+def check_compare_branch(blocks, program):
     """
     Check conditional branches in the blocks following a comparison instructions.
     """
@@ -286,6 +286,7 @@ def check_compare_branch(blocks, pseudo_disassembler: PseudoDisassembler, progra
             # Check if the second instruction is a comparison
             detect_comp_flg = False
             for instr in instrs[1:]:
+                if instr is None: continue
                 pcode_ops = instr.getPcode()
                 if any(op.getOpcode() in COMPARISON_OPCODES for op in pcode_ops):
                     detect_comp_flg = True
@@ -348,7 +349,7 @@ if __name__ == "__main__":
         pseudo_disassemble_blocks(blocks, program)
 
         get_feature_vector(blocks, PseudoDisassembler(program), program.getReferenceManager(), listing, memory)
-        check_compare_branch(blocks, PseudoDisassembler(program), program)
+        check_compare_branch(blocks, program)
         check_very_short(blocks)
 
         # check_def_use(blocks, PseudoDisassembler(program))
