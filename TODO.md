@@ -1,5 +1,5 @@
 - [x] Add Fallthrough  
 - [ ] Feature Vector  
-  - [ ] Printable Char #
-  - [ ] Longest String #
+  - [x] Printable Char #
+  - [x] Longest String #
 - [ ] Reference Rel

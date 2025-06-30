@@ -1,102 +1,47 @@
-import torch
-import pyghidra
-import ltn
-import ltn.fuzzy_ops
-import networkx as nx
-from blocks_helper import *
-from models import MLPClassifier
-from graph_helper import *
-from loguru import logger
-from sys import argv
+from my_program_helper import *
+from my_models import MLPClassifier
+from ltn import fuzzy_ops
+from pathlib import Path
+from datetime import datetime
 
-if not pyghidra.started():
-    pyghidra.start()
-
-from ghidra.program.model.address import AddressSet
-from ghidra.app.util import PseudoDisassembler
-from ghidra.program.model.lang import RegisterValue
-
-def generate_random_embeddings(blocks, dim=16):
-    n = len(blocks)
-    embeddings = torch.randn(n, dim)
-    return embeddings
-
-def embeddings_from_feature_vector(blocks):
-    """
-    Generate embeddings from the feature vector of the blocks.
-    """
-    embeddings = []
-    for block in blocks:
-        embeddings.append(torch.tensor(block.feature_vector, dtype=torch.float32))
-    return torch.stack(embeddings, dim=0)
-
-
-def get_rel_vars(graph: nx.DiGraph, block2idx: dict, embeddings: torch.Tensor, edge_type):
-    """
-    Get the first-order logic variables of [edge_type] for the graph.
-    """
-    edges = torch.tensor([(block2idx[u], block2idx[v]) for u, v in graph.edges() if graph[u][v]['type'] == edge_type], dtype=torch.long)
-    if edges.numel() == 0:
-        return None, None
-    left_idx = edges[:, 0]
-    right_idx = edges[:, 1]
-    left_embeddings = embeddings[left_idx] 
-    right_embeddings = embeddings[right_idx]
-    return  ltn.Variable(f"{edge_type}_rel_left", left_embeddings), ltn.Variable(f"{edge_type}_rel_right", right_embeddings)
-
-def get_identity_vars(blocks, block2idx, embeddings, field, val):
-    """
-    Get the first-order logic variables of field == val for the graph.
-    """
-    blocks = torch.tensor([block2idx[b] for b in blocks if getattr(b, field) == val], dtype=torch.long)
-    if blocks.numel() == 0:
-        return None
-    block_embeddings = embeddings[blocks]
-    return ltn.Variable(f"{field}_{val}_id", block_embeddings)
-
-def train(flat_api, CodeBlock=None):
+def train(
+        my_program: MyProgram,
+        CodeBlock: ltn.Predicate|None = None, 
+        epochs: int = 1000
+    ) -> tuple[ltn.Predicate, float]:
     """
     Single iteration of training
+    Args:
+        my_program (MyProgram): The program containing the embeddings and blocks.
+        CodeBlock (ltn.Predicate | None): Optional predicate for code blocks, if None, a new one will be created.
+        epochs (int): Number of training epochs.
+        progress (Progress | None): Optional progress bar for training, if None, no progress bar will be shown.
+    Returns:
+        tuple[ltn.Predicate, float]: The trained program, the CodeBlock predicate, and the final loss value.
     """
-    program = flat_api.getCurrentProgram()
-    graph = create_graph(flat_api)
-    blocks = list(graph.nodes())
-    ref_manager = program.getReferenceManager()
-    listing = program.getListing()
-    memory = program.getMemory()
-    blocks.sort(key=lambda b: b.start_address)
+    if not CodeBlock: 
+        CodeBlock = ltn.Predicate(MLPClassifier(input_dim=my_program.embeddings.size(1), hidden_dim1=32, hidden_dim2=64).to(ltn.device))
 
-    get_feature_vector(blocks, PseudoDisassembler(program), ref_manager, listing, memory)
-    check_compare_branch(blocks, program)
-    check_very_short(blocks)
-    
-    embeddings = embeddings_from_feature_vector(blocks)
+    SatAgg = fuzzy_ops.SatAgg(fuzzy_ops.AggregPMeanError(p=4))
+    Forall = ltn.Quantifier(fuzzy_ops.AggregPMeanError(p=4), quantifier='f')
 
-    block2idx = {block: i for i, block in enumerate(blocks)}
-    idx2block = {i: block for i, block in enumerate(blocks)}
-    if not CodeBlock: CodeBlock = ltn.Predicate(MLPClassifier(input_dim=embeddings.size(1), hidden_dim1=16, hidden_dim2=32).to(ltn.device))
+    Equiv = ltn.Connective(fuzzy_ops.Equiv(fuzzy_ops.AndProd(), fuzzy_ops.ImpliesReichenbach()))
+    Not = ltn.Connective(fuzzy_ops.NotStandard())
 
-    SatAgg = ltn.fuzzy_ops.SatAgg(ltn.fuzzy_ops.AggregPMeanError(p=4))
-    Forall = ltn.Quantifier(ltn.fuzzy_ops.AggregPMeanError(p=4), quantifier='f')
-    Exists = ltn.Quantifier(ltn.fuzzy_ops.AggregPMean(p=3), quantifier='e')
+    x_call, y_call= my_program.get_rel_vars("call")
+    x_ft, y_ft = my_program.get_rel_vars("fallthrough")
 
-    Implies = ltn.Connective(ltn.fuzzy_ops.ImpliesReichenbach())
-    Equiv = ltn.Connective(ltn.fuzzy_ops.Equiv(ltn.fuzzy_ops.AndProd(), ltn.fuzzy_ops.ImpliesReichenbach()))
-    Not = ltn.Connective(ltn.fuzzy_ops.NotStandard())
-    And = ltn.Connective(ltn.fuzzy_ops.AndProd())
+    cond_brch_t = my_program.get_identity_vars("cond_branch_flg", True)
+    cond_brch_f = my_program.get_identity_vars("cond_branch_flg", False)
+    high_zero_rate = my_program.get_identity_vars("high_zero_rate_flg", True)
+    high_cont_printable_char_rate = my_program.get_identity_vars("high_cont_printable_char_rate_flg", True)
 
-    x_call, y_call= get_rel_vars(graph, block2idx, embeddings, "call")
-    x_ft, y_ft = get_rel_vars(graph, block2idx, embeddings, "fallthrough")
-
-    cond_brch_t = get_identity_vars(blocks, block2idx, embeddings, "cond_branch_flg", True)
-    cond_brch_f = get_identity_vars(blocks, block2idx, embeddings, "cond_branch_flg", False)
-    high_zero_rate = get_identity_vars(blocks, block2idx, embeddings, "high_zero_rate_flg", True)
-
-    disasm_gt_cb = get_identity_vars(blocks, block2idx, embeddings, "type", "Code")
-    disasm_gt_db = get_identity_vars(blocks, block2idx, embeddings, "type", "Data")
+    disasm_gt_cb = my_program.get_identity_vars("type", "Code")
+    disasm_gt_db = my_program.get_identity_vars("type", "Data")
 
     optimizer = torch.optim.Adam(list(CodeBlock.parameters()), lr=0.001)
-    epochs = 2000
+
+    start = datetime.now()
 
     for epoch in range(epochs):
         
@@ -120,62 +65,77 @@ def train(flat_api, CodeBlock=None):
             sat_agg_list.append(Forall([x_ft, y_ft], Equiv(CodeBlock(x_ft), CodeBlock(y_ft))))
         if x_call and y_call:
             sat_agg_list.append(Forall([x_call, y_call], Equiv(CodeBlock(x_call), CodeBlock(y_call))))
+        if high_cont_printable_char_rate:
+            sat_agg_list.append(Forall([high_cont_printable_char_rate], Not(CodeBlock(high_cont_printable_char_rate))))
 
         sat_agg = SatAgg(*sat_agg_list)
 
         loss = 1. - sat_agg
         loss.backward()
         optimizer.step()
-        if epoch % 100 == 0:
-            logger.info(f"Epoch {epoch}, Loss: {loss.item()}")
+        # if epoch % 100 == 0:
+        #     logger.info(f"Epoch {epoch}, Loss: {loss.item():.5f}")
         if loss.item() < 0.01:
-            logger.info(f"Early stopping at epoch {epoch}, Loss: {loss.item()}")
+            logger.info(f"Early stopping at epoch {epoch}, Loss: {loss.item():.5f}")
             break
-    logger.info("Training complete.")
-    return (blocks, embeddings, CodeBlock)
 
-def evaluate(blocks, embeddings, CodeBlock, label_file):
-    """
-    Evaluate the model on the labeled data.
-    """
+    logger.info(f"Training completed in {(datetime.now() - start).total_seconds():.2f}s, final loss: {loss.item():.5f}")
+
+    return (CodeBlock, loss.item())
+
+def evaluate(
+        my_program: MyProgram,
+        CodeBlock: ltn.Predicate,
+        loss: float,
+        label_file,
+        result_path: Path,
+        debug_flg: bool = False
+    ) -> dict:
+    start = datetime.now()
+
     with open(label_file, "r") as f:
         lines = f.readlines()
     lines = [line.strip()[-1] for line in lines]
 
-    tp_code, tp_data, fp_code, fp_data, fn_code, fn_data, cnt = 0, 0, 0, 0, 0, 0, 0
+    tp_code = tp_data = fp_code = fp_data = fn_code = fn_data = cnt = 0
 
-    with open("debug/detail.txt", "w") as f:
-        for i, block in enumerate(blocks):
-            block_opt_flg = True
-            if block.start_address.getOffset() > 0x16f4c:
-                break
+    if not result_path.exists():
+        result_path.mkdir(parents=True, exist_ok=True)
+
+    f = open(result_path / "debug.txt", "w") if debug_flg else None
+
+    for i, block in enumerate(my_program.blocks):
+        block_opt_flg = True
+        code_flg = 0
+        if CodeBlock(ltn.Constant(my_program.embeddings[i])).value < loss:
             code_flg = 1
-            if CodeBlock(ltn.Constant(embeddings[i])).value > 0.40:
-                code_flg = 0
 
-            addr = block.start_address
-            while addr <= block.end_address:
-                if cnt // 4 >= len(lines):
-                    logger.error(f"Not enough labels in lines for address {addr}.")
-                    break
-                if code_flg == int(lines[cnt//4]):
-                    if code_flg == 0:
-                        tp_code += 1
-                    else:
-                        tp_data += 1
+        addr = block.start_address
+        while addr <= block.end_address:
+            if cnt // 4 >= len(lines):
+                break
+            if code_flg == int(lines[cnt // 4]):
+                if code_flg == 0:
+                    tp_code += 1
                 else:
-                    if code_flg == 0:
-                        fp_code += 1
-                        fn_data += 1
-                    else:
-                        fp_data += 1
-                        fn_code += 1
-                    f.write(f"{addr} expected: {lines[cnt//4]}, predicted: {code_flg}\n")
-                    block_opt_flg = False
-                addr = addr.add(1)
-                cnt += 1
-            if not block_opt_flg:
-                f.write("\n")
+                    tp_data += 1
+            else:
+                if code_flg == 0:
+                    fp_code += 1
+                    fn_data += 1
+                else:
+                    fp_data += 1
+                    fn_code += 1
+                if f:
+                    f.write(f"{addr} expected: {lines[cnt // 4]}, predicted: {code_flg}\n")
+                block_opt_flg = False
+            addr = addr.add(1)
+            cnt += 1
+        if not block_opt_flg and f:
+            f.write("\n")
+
+    if f:
+        f.close()
 
     code_prec = tp_code / (tp_code + fp_code) if (tp_code + fp_code) > 0 else 0.0
     code_rec  = tp_code / (tp_code + fn_code) if (tp_code + fn_code) > 0 else 0.0
@@ -185,18 +145,22 @@ def evaluate(blocks, embeddings, CodeBlock, label_file):
     data_rec  = tp_data / (tp_data + fn_data) if (tp_data + fn_data) > 0 else 0.0
     data_f1   = 2 * data_prec * data_rec / (data_prec + data_rec) if (data_prec + data_rec) > 0 else 0.0
 
+    if debug_flg:
+        with open(result_path / "result.txt", "w") as f:
+            for i, block in enumerate(my_program.blocks):
+                f.write(
+                    f"{repr(block)}\n"
+                    f"  Embedding : {my_program.embeddings[i]}\n"
+                    f"  CodeBlock : {CodeBlock(ltn.Constant(my_program.embeddings[i])).value.item()}\n\n"
+                )
+
+    elapsed = (datetime.now() - start).total_seconds()
     logger.info(
         f"Code  P/R/F1: {code_prec:.5f}/{code_rec:.5f}/{code_f1:.5f} | "
-        f"Data  P/R/F1: {data_prec:.5f}/{data_rec:.5f}/{data_f1:.5f}"
+        f"Data  P/R/F1: {data_prec:.5f}/{data_rec:.5f}/{data_f1:.5f} | "
+        f"Time: {elapsed:.2f}s"
     )
 
-    with open("debug/result.txt", "w") as f:
-        for i, block in enumerate(blocks):
-            f.write(
-                f"{block}\n"
-                f"  Embedding : {embeddings[i]}\n"
-                f"  CodeBlock : {CodeBlock(ltn.Constant(embeddings[i])).value.item()}\n\n"
-            )
     return {
         "code_precision": code_prec,
         "code_recall": code_rec,
@@ -206,8 +170,23 @@ def evaluate(blocks, embeddings, CodeBlock, label_file):
         "data_f1": data_f1
     }
 
-
 if __name__ == '__main__':
+    debug_flg = (argv[1] == "debug")
     with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/108.58.252.74.PRG', language='ARM:LE:32:Cortex') as flat_api:
-        blocks, embeddings, CodeBlock = train(flat_api)
-        evaluate(blocks, embeddings, CodeBlock, "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/labeled/108.58.252.74.txt")
+
+        time = datetime.now()
+        my_program = MyProgram(flat_api)
+        logger.info(f"Program preprocessed in {(datetime.now() - time).total_seconds():.2f}s")
+        
+        CodeBlock, loss = train(my_program, None, 2000)
+        time_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        evaluate(
+            my_program, 
+            CodeBlock, 
+            loss, 
+            "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/labeled/108.58.252.74.txt", 
+            Path(f"./debug/{time_stamp}/108.58.252.74.PRG"), 
+            debug_flg
+        )
+        if debug_flg:
+            torch.save(CodeBlock.state_dict(), Path(f"./debug/{time_stamp}/CodeBlock.pt"))
