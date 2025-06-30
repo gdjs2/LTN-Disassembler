@@ -1,3 +1,4 @@
 debug
 .vscode
-ghidra_scripts/__pycache__
+__pycache__/
+*.log
