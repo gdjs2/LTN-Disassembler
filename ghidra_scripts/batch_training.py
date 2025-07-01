@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     for prg_file in binaries:
         start_time = datetime.now()
-        with pyghidra.open_program(prg_file, language='ARM:LE:32:Cortex') as flat_api:
+        with pyghidra.open_program(prg_file, language='ARM:LE:32:default') as flat_api:
             my_program = MyProgram(flat_api)
         process_times.append((prg_file.name, (datetime.now() - start_time).total_seconds()))
         logger.info(f"Program {prg_file.name} preprocessed in {process_times[-1][1]:.2f}s")

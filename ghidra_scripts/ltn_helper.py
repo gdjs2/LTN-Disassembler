@@ -172,7 +172,7 @@ def evaluate(
 
 if __name__ == '__main__':
     debug_flg = (argv[1] == "debug")
-    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/108.58.252.74.PRG', language='ARM:LE:32:Cortex') as flat_api:
+    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/217.112.103.105.PRG', language='ARM:LE:32:default') as flat_api:
 
         time = datetime.now()
         my_program = MyProgram(flat_api)
@@ -184,8 +184,8 @@ if __name__ == '__main__':
             my_program, 
             CodeBlock, 
             loss, 
-            "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/labeled/108.58.252.74.txt", 
-            Path(f"./debug/{time_stamp}/108.58.252.74.PRG"), 
+            "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/labeled/217.112.103.105.txt", 
+            Path(f"./debug/{time_stamp}/217.112.103.105.PRG"), 
             debug_flg
         )
         if debug_flg:
