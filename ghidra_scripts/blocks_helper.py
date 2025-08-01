@@ -75,6 +75,7 @@ class Block:
         self.high_zero_rate_flg: bool|None = None
         self.high_def_use_rate_flg: bool|None = None
         self.high_cont_printable_char_rate_flg: bool|None = None
+        self.failed_disasm_flg: bool|None = None
 
         self.feature_vector: list[float]|None = None
         self.pseudo_instrs: list[PseudoInstruction]|None = None
@@ -91,6 +92,7 @@ class Block:
             f"    high_zero_rate     : {self.high_zero_rate_flg}\n"
             f"    high_def_use_rate  : {self.high_def_use_rate_flg}\n"
             f"    high_printable_char: {self.high_cont_printable_char_rate_flg}\n"
+            f"    failed_disasm      : {self.failed_disasm_flg}\n"
             f"  Feature Vector: {self.feature_vector}"
         )
 
@@ -177,7 +179,8 @@ def pseudo_disassemble_blocks(blocks: list[Block], program: Program) -> None:
     for block in blocks:
         ctx = PseudoDisassemblerContext(program.getProgramContext())
         tmode_reg = program.getRegister("TMode")
-        ctx.setValue(tmode_reg, block.start_address, BigInteger.ZERO)
+        # If you don't care about thumb mode, just comment the next line
+        # ctx.setValue(tmode_reg, block.start_address, BigInteger.ZERO)
         ctx.flowStart(block.start_address)
 
         instrs: list[PseudoInstruction] = []
@@ -188,7 +191,10 @@ def pseudo_disassemble_blocks(blocks: list[Block], program: Program) -> None:
             if instr is not None:
                 addr = instr.getMaxAddress().next()
             else:
-                addr = addr.add(4) # TODO: double check here
+                block.failed_disasm_flg = True
+                addr = addr.add(4) # TODO: double check here 
+        if block.failed_disasm_flg is None:
+            block.failed_disasm_flg = False
         block.pseudo_instrs = instrs
 
 def get_string_number(block: Block, refs: ReferenceManager, listing: Listing) -> int:

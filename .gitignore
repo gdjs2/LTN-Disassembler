@@ -2,3 +2,5 @@ debug
 .vscode
 __pycache__/
 *.log
+result-analysis/
+fixed_gt/

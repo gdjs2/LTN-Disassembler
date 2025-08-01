@@ -1,3 +1,4 @@
+# This file is deprecated and will be updated in the future.
 
 import pyghidra
 import ltn
@@ -5,10 +6,10 @@ import ltn.fuzzy_ops
 import torch
 
 from loguru import logger
-from models import MLPClassifier
+from my_models import MLPClassifier
 from graph_helper import create_graph
-from blocks_helper import check_compare_branch, check_def_use, check_very_short, fix_undisassembled_data_blocks, get_feature_vector, pseudo_disassemble_blocks
-from ltn_helper import generate_random_embeddings, get_rel_vars, get_identity_vars, embeddings_from_feature_vector
+from blocks_helper import check_compare_branch, check_very_short, get_feature_vector, pseudo_disassemble_blocks
+from ltn_helper import generate_random_embeddings, embeddings_from_feature_vector
 
 if not pyghidra.started():
     pyghidra.start()

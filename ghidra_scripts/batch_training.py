@@ -8,8 +8,8 @@ binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins")
 files = [f for f in binary_folder.iterdir() if f.is_file()]
 files = sorted(files, key=lambda x: x.stat().st_size)
 
-binaries = files
-gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/labeled/") for p in binaries]
+binaries = files[:5]
+gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in binaries]
 
 results = []
 
@@ -24,15 +24,17 @@ if __name__ == "__main__":
 
     for prg_file in binaries:
         start_time = datetime.now()
-        with pyghidra.open_program(prg_file, language='ARM:LE:32:default') as flat_api:
+        with pyghidra.open_program(prg_file, language='ARM:LE:32:v4') as flat_api:
             my_program = MyProgram(flat_api)
         process_times.append((prg_file.name, (datetime.now() - start_time).total_seconds()))
         logger.info(f"Program {prg_file.name} preprocessed in {process_times[-1][1]:.2f}s")
         my_programs[prg_file] = my_program
     logger.info(f"All programs preprocessed in {sum(t[1] for t in process_times):.2f}s, total blocks: {sum(len(prg.blocks) for prg in my_programs.values())}")
 
-    small_epochs = 1000
-    large_epochs = 5
+    # Small epoches is the epochs for training on each program
+    # We will train on all binaries for a few epochs, which is large_epochs
+    small_epochs = 300
+    large_epochs = 3
     logger.info(f"Start training with {len(my_programs)} programs, small epochs: {small_epochs}, large epochs: {large_epochs}")
 
     for i in range(large_epochs):

@@ -170,22 +170,26 @@ def evaluate(
         "data_f1": data_f1
     }
 
+# You can train single binary using this script
 if __name__ == '__main__':
+    # Command line argument to enable debug mode
     debug_flg = (argv[1] == "debug")
-    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/217.112.103.105.PRG', language='ARM:LE:32:default') as flat_api:
+    # Set your binary file path here
+    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/213.118.72.207.PRG', language='ARM:LE:32:v4') as flat_api:
 
         time = datetime.now()
         my_program = MyProgram(flat_api)
         logger.info(f"Program preprocessed in {(datetime.now() - time).total_seconds():.2f}s")
         
-        CodeBlock, loss = train(my_program, None, 2000)
+        CodeBlock, loss = train(my_program, None, 1000)
         time_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # gt file and debug directory should be set here
         evaluate(
             my_program, 
             CodeBlock, 
             loss, 
-            "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/labeled/217.112.103.105.txt", 
-            Path(f"./debug/{time_stamp}/217.112.103.105.PRG"), 
+            "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/fixed_labeled/213.118.72.207.txt", 
+            Path(f"./debug/{time_stamp}/213.118.72.207.PRG"), 
             debug_flg
         )
         if debug_flg:
