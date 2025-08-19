@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 from functools import reduce
 
-binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins")
+binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins")
 files = [f for f in binary_folder.iterdir() if f.is_file()]
 files = sorted(files, key=lambda x: x.stat().st_size)
 

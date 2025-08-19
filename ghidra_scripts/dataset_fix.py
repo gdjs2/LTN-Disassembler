@@ -5,12 +5,13 @@ from datetime import datetime
 from functools import reduce
 
 # Choose the binary folder
-binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins")
+binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins")
 files = [f for f in binary_folder.iterdir() if f.is_file()]
 # files = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/5.226.124.166.PRG")]
 files = sorted(files, key=lambda x: x.stat().st_size)
 
 binaries = files
+# binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins/xor_st.app")]
 # Ground truth files are expected to be in the same folder with a different suffix
 gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/labeled/") for p in binaries]
 

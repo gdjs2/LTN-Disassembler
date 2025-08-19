@@ -83,7 +83,7 @@ class Block:
     def __repr__(self: Self) -> str:
         return (
             f"{self.type}Block:\n"
-            f"  Address Range : [{self.start_address} - {self.end_address}]\n"
+            f"  Address Range : [{self.start_address} - {self.end_address}] (l{self.start_address.getOffset()//4 + 1} - l{self.end_address.getOffset()//4 + 1})\n"
             f"  Section       : [{self.section_name}]\n"
             f"  Flags:\n"
             f"    cond_branch        : {self.cond_branch_flg}\n"
@@ -126,6 +126,7 @@ def extract_all_blocks(listing: Listing, memory: Memory) -> list[Block]:
             code_unit = listing.getCodeUnitAt(addr)
 
             if isinstance(code_unit, Instruction):
+                code_unit: Instruction = code_unit
                 # Close any ongoing data block
                 if in_data_block:
                     block_end = code_unit.getMinAddress().subtract(1)
@@ -137,8 +138,9 @@ def extract_all_blocks(listing: Listing, memory: Memory) -> list[Block]:
                     code_start = addr
                     in_code_block = True
 
-                mnemonic = code_unit.getMnemonicString().lower()
-                if mnemonic in {"call", "ret"} or mnemonic.startswith(("j", "b")):
+                flow_type = code_unit.getFlowType()
+
+                if flow_type is not None and (flow_type.isCall() or flow_type.isJump() or flow_type.isTerminal()):
                     block_end = code_unit.getMaxAddress()
                     blocks.append(Block(code_start, block_end, "Code", mmry_blk.getName()))
                     in_code_block = False
@@ -178,7 +180,7 @@ def pseudo_disassemble_blocks(blocks: list[Block], program: Program) -> None:
     pseudo_disassembler = PseudoDisassembler(program)
     for block in blocks:
         ctx = PseudoDisassemblerContext(program.getProgramContext())
-        tmode_reg = program.getRegister("TMode")
+        # tmode_reg = program.getRegister("TMode")
         # If you don't care about thumb mode, just comment the next line
         # ctx.setValue(tmode_reg, block.start_address, BigInteger.ZERO)
         ctx.flowStart(block.start_address)
@@ -196,6 +198,34 @@ def pseudo_disassemble_blocks(blocks: list[Block], program: Program) -> None:
         if block.failed_disasm_flg is None:
             block.failed_disasm_flg = False
         block.pseudo_instrs = instrs
+
+def split_data_blocks(blocks: list[Block]) -> list[Block]:
+    splited_blocks = []
+    for block in blocks:
+        if block.type != "Data" or block.pseudo_instrs is None:
+            splited_blocks.append(block)
+            continue
+        last_instr_idx = 0
+        last_instr_address = block.start_address
+        for idx, instr in enumerate(block.pseudo_instrs):
+            if instr is None: continue
+            flow_type = instr.getFlowType()
+
+            if flow_type is not None and (flow_type.isCall() or flow_type.isJump() or flow_type.isTerminal()):
+                # logger.debug(f"Split {block} @ {instr.getMaxAddress()} by {instr}, flow type: {instr.getFlowType()}")
+                new_block = Block(last_instr_address, instr.getMaxAddress(), "Data", block.section_name)
+                new_block.pseudo_instrs = block.pseudo_instrs[last_instr_idx:idx + 1]
+                new_block.failed_disasm_flg = None in new_block.pseudo_instrs
+                splited_blocks.append(new_block)
+                last_instr_idx = idx + 1
+                last_instr_address = instr.getMaxAddress().add(1)
+        # Append any remaining instructions as a new block
+        if last_instr_idx < len(block.pseudo_instrs):
+            new_block = Block(last_instr_address, block.end_address, "Data", block.section_name)
+            new_block.pseudo_instrs = block.pseudo_instrs[last_instr_idx:]
+            splited_blocks.append(new_block)
+
+    return splited_blocks
 
 def get_string_number(block: Block, refs: ReferenceManager, listing: Listing) -> int:
     """
@@ -520,7 +550,7 @@ if __name__ == "__main__":
 
         get_feature_vector(blocks, program.getReferenceManager(), listing, memory)
         check_compare_branch(blocks, program)
-        check_very_short(blocks)
+        # check_very_short(blocks)
 
         # check_def_use(blocks, PseudoDisassembler(program))
         if argv[1] == "debug":

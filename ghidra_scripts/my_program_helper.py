@@ -27,7 +27,7 @@ class MyProgram:
         # Get feature vectors for the blocks
         get_feature_vector(self.blocks, ref_manager, listing, memory)
         check_compare_branch(self.blocks, program)
-        check_very_short(self.blocks)
+        # check_very_short(self.blocks)
 
         # Generate embeddings from the feature vectors
         self.embeddings = generate_embeddings_from_feature_vector(self.blocks)

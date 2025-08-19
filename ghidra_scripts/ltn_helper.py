@@ -35,6 +35,7 @@ def train(
     cond_brch_f = my_program.get_identity_vars("cond_branch_flg", False)
     high_zero_rate = my_program.get_identity_vars("high_zero_rate_flg", True)
     high_cont_printable_char_rate = my_program.get_identity_vars("high_cont_printable_char_rate_flg", True)
+    failed_disasm = my_program.get_identity_vars("failed_disasm_flg", True)
 
     disasm_gt_cb = my_program.get_identity_vars("type", "Code")
     disasm_gt_db = my_program.get_identity_vars("type", "Data")
@@ -45,8 +46,10 @@ def train(
 
     for epoch in range(epochs):
         
-        ltn.diag(x_ft, y_ft)
-        ltn.diag(x_call, y_call)
+        if x_ft and y_ft:
+            ltn.diag(x_ft, y_ft)
+        if x_call and y_call:
+            ltn.diag(x_call, y_call)
 
         optimizer.zero_grad()
 
@@ -67,6 +70,8 @@ def train(
             sat_agg_list.append(Forall([x_call, y_call], Equiv(CodeBlock(x_call), CodeBlock(y_call))))
         if high_cont_printable_char_rate:
             sat_agg_list.append(Forall([high_cont_printable_char_rate], Not(CodeBlock(high_cont_printable_char_rate))))
+        if failed_disasm:
+            sat_agg_list.append(Forall([failed_disasm], Not(CodeBlock(failed_disasm))))
 
         sat_agg = SatAgg(*sat_agg_list)
 
@@ -156,8 +161,8 @@ def evaluate(
 
     elapsed = (datetime.now() - start).total_seconds()
     logger.info(
-        f"Code  P/R/F1: {code_prec:.5f}/{code_rec:.5f}/{code_f1:.5f} | "
-        f"Data  P/R/F1: {data_prec:.5f}/{data_rec:.5f}/{data_f1:.5f} | "
+        f"Code  P/R/F1: {code_prec:.5f}/{code_rec:.5f}/{code_f1:.5f} (tp:{tp_code}) | "
+        f"Data  P/R/F1: {data_prec:.5f}/{data_rec:.5f}/{data_f1:.5f} (tp:{tp_data}) | "
         f"Time: {elapsed:.2f}s"
     )
 
@@ -175,7 +180,7 @@ if __name__ == '__main__':
     # Command line argument to enable debug mode
     debug_flg = (argv[1] == "debug")
     # Set your binary file path here
-    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/213.118.72.207.PRG', language='ARM:LE:32:v4') as flat_api:
+    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins/xor_st.app', language='ARM:LE:32:v4') as flat_api:
 
         time = datetime.now()
         my_program = MyProgram(flat_api)
@@ -187,9 +192,9 @@ if __name__ == '__main__':
         evaluate(
             my_program, 
             CodeBlock, 
-            loss, 
-            "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/fixed_labeled/213.118.72.207.txt", 
-            Path(f"./debug/{time_stamp}/213.118.72.207.PRG"), 
+            0.5, 
+            "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/labeled/ton_ld.txt", 
+            Path(f"./debug/{time_stamp}/ton_ld.app"), 
             debug_flg
         )
         if debug_flg:

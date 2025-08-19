@@ -1,3 +1,4 @@
+import os
 import networkx as nx
 
 from blocks_helper import *
@@ -90,6 +91,7 @@ def create_graph(flat_api: FlatProgramAPI) -> nx.DiGraph:
     blocks.sort(key=lambda b: b.start_address)
     
     pseudo_disassemble_blocks(blocks, program)
+    blocks = split_data_blocks(blocks)
 
     fall_through_edges = _get_fallthrough_edges(blocks)
     call_edges = _get_call_edges(blocks, listing)
@@ -103,17 +105,20 @@ def create_graph(flat_api: FlatProgramAPI) -> nx.DiGraph:
     
     
 if __name__ == "__main__":
-    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/108.58.252.74.PRG', language='ARM:LE:32:Cortex') as flat_api:
+    with pyghidra.open_program('/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins/xor_st.app', language='ARM:LE:32:v4') as flat_api:
         graph = create_graph(flat_api)
         blocks = list(graph.nodes)
         blocks.sort(key=lambda b: b.start_address)
 
+    time_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if argv[1] == "debug":
-        with open("./debug/graph_helper_blocks.txt", "w") as f:
+        if not os.path.exists(f"./debug/{time_stamp}"):
+            os.makedirs(f"./debug/{time_stamp}")
+        with open(f"./debug/{time_stamp}/graph_helper_blocks.txt", "w") as f:
             for block in blocks:
                 f.write(f"{block}\n")
 
-        with open("./debug/graph_helper_edges.txt", "w") as f:
+        with open(f"./debug/{time_stamp}/graph_helper_edges.txt", "w") as f:
             for u, v in graph.edges():
                 f.write(f"{u} -> {v} ({graph[u][v]['type']})\n")
     
