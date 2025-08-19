@@ -3,6 +3,7 @@ from ltn_helper import *
 from pathlib import Path
 from datetime import datetime
 from functools import reduce
+from typing import TextIO
 
 # Choose the binary folder
 binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins")
@@ -10,7 +11,7 @@ files = [f for f in binary_folder.iterdir() if f.is_file()]
 # files = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/5.226.124.166.PRG")]
 files = sorted(files, key=lambda x: x.stat().st_size)
 
-binaries = files
+binaries = files[:10]
 # binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins/xor_st.app")]
 # Ground truth files are expected to be in the same folder with a different suffix
 gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/labeled/") for p in binaries]
@@ -26,8 +27,9 @@ geomean = lambda x: math.exp(sum(map(math.log, x)) / len(x))
 # correct the labels to indicate that it is indeed code.
 def fix(
         my_program: MyProgram,
-        label_file,
+        label_file: str,
         fixed_file: Path,
+        fixed_f1_file_obj: TextIO
     ) -> None:
     """
     Fix the ground truth labels for code blocks that failed disassembly.
@@ -41,6 +43,9 @@ def fix(
     gt = [line.strip()[-1] for line in lines]
 
     cnt = 0
+
+    fp_code = 0
+    code_ori = data_ori = 0
 
     f = open(fixed_file, "w")
     for block in my_program.blocks:
@@ -60,12 +65,17 @@ def fix(
         if code_block_flg and block.failed_disasm_flg:
             for i in range(start_idx, end_idx + 1):
                 f.write(lines[i].strip()[:-1] + "1\n")
+                fp_code += 1
             logger.info(f"Fixed block {block}, which was Code in GT but failed disassembly.")
         else:
             for i in range(start_idx, end_idx + 1):
                 f.write(lines[i])
-        
-
+                if lines[i].strip()[-1] == '0':
+                    code_ori += 1
+                else:
+                    data_ori += 1
+    # Name, Code Precision, Code Recall (1), Data Precision (1), Data Recall
+    fixed_f1_file_obj.write(f"{fixed_file.stem}\t{(code_ori - fp_code) / code_ori}\t{1}\t{1}\t{data_ori / (data_ori + fp_code)}\n")
     if f:
         f.close()
 
@@ -86,11 +96,13 @@ if __name__ == "__main__":
     logger.info(f"All programs preprocessed in {sum(t[1] for t in process_times):.2f}s, total blocks: {sum(len(prg.blocks) for prg in my_programs.values())}")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    for prg_file, gt_file in zip(my_programs, gt):
-        try:
-            if not Path(f"fixed_gt/{timestamp}").exists():
-                Path(f"fixed_gt/{timestamp}").mkdir(parents=True, exist_ok=True)
-            fix(my_programs[prg_file], gt_file, Path(f"fixed_gt/{timestamp}/{prg_file.stem}.txt"))
-            logger.info(f"Fix completed for {prg_file}")
-        except Exception as e:
-            logger.info(f"Error when fixing {prg_file}: {e}")
+    if not Path(f"fixed_gt/{timestamp}").exists():
+        Path(f"fixed_gt/{timestamp}").mkdir(parents=True, exist_ok=True)
+
+    with open(f"fixed_gt/{timestamp}/fixed_results.tsv", "w") as fixed_result_file:
+        for prg_file, gt_file in zip(my_programs, gt):
+            try:
+                fix(my_programs[prg_file], gt_file, Path(f"fixed_gt/{timestamp}/{prg_file.stem}.txt"), fixed_result_file)
+                logger.info(f"Fix completed for {prg_file}")
+            except Exception as e:
+                logger.info(f"Error when fixing {prg_file}: {e}")
