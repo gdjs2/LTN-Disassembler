@@ -114,7 +114,7 @@ def extract_all_blocks(listing: Listing, memory: Memory) -> list[Block]:
 
     for mmry_blk in memory.getBlocks():
         addr = mmry_blk.getStart()
-        blk_end_addr = mmry_blk.getEnd()
+        blk_end_addr = mmry_blk.getEnd().subtract(1)
 
         in_code_block = False
         code_start = None
@@ -210,7 +210,6 @@ def split_data_blocks(blocks: list[Block]) -> list[Block]:
         for idx, instr in enumerate(block.pseudo_instrs):
             if instr is None: continue
             flow_type = instr.getFlowType()
-
             if flow_type is not None and (flow_type.isCall() or flow_type.isJump() or flow_type.isTerminal()):
                 # logger.debug(f"Split {block} @ {instr.getMaxAddress()} by {instr}, flow type: {instr.getFlowType()}")
                 new_block = Block(last_instr_address, instr.getMaxAddress(), "Data", block.section_name)
@@ -430,7 +429,7 @@ def get_feature_vector(
     Get the feature vector for each block.
     """
     for block in blocks:
-        block_size = block.end_address.subtract(block.start_address)
+        block_size = block.end_address.subtract(block.start_address) + 1
         feature_vec = [
             get_string_number(block, refs, listing) / block_size,
             get_num_constant(block) / block_size,

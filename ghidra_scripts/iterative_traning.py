@@ -4,11 +4,11 @@ from pathlib import Path
 from datetime import datetime
 from functools import reduce
 
-binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins")
+binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_2/bins")
 files = [f for f in binary_folder.iterdir() if f.is_file()]
 files = sorted(files, key=lambda x: x.stat().st_size)
 
-binaries = files[:10]
+binaries = files[:30]
 # binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins/xor_st.app")]
 gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in binaries]
 
