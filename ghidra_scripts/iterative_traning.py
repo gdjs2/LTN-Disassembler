@@ -8,8 +8,8 @@ binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_2/bins")
 files = [f for f in binary_folder.iterdir() if f.is_file()]
 files = sorted(files, key=lambda x: x.stat().st_size)
 
-binaries = files[:30]
-# binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/bins/xor_st.app")]
+# binaries = files[:30]
+binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/5.185.84.3.PRG")]
 gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in binaries]
 
 results = []

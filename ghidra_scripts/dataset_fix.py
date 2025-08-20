@@ -6,13 +6,13 @@ from functools import reduce
 from typing import TextIO
 
 # Choose the binary folder
-binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_2/bins")
+binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins")
 files = [f for f in binary_folder.iterdir() if f.is_file()]
 # files = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/5.226.124.166.PRG")]
 files = sorted(files, key=lambda x: x.stat().st_size)
 
-# binaries = files[:30]
-binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/85.4.206.35.PRG")]
+# binaries = files[:10]
+binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/5.185.84.3.PRG")]
 # Ground truth files are expected to be in the same folder with a different suffix
 gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/labeled/") for p in binaries]
 

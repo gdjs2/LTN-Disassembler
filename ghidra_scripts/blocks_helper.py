@@ -223,6 +223,7 @@ def split_data_blocks(blocks: list[Block]) -> list[Block]:
             new_block = Block(last_instr_address, block.end_address, "Data", block.section_name)
             new_block.pseudo_instrs = block.pseudo_instrs[last_instr_idx:]
             splited_blocks.append(new_block)
+            new_block.failed_disasm_flg = None in new_block.pseudo_instrs
 
     return splited_blocks
 
