@@ -3,14 +3,20 @@ from ltn_helper import *
 from pathlib import Path
 from datetime import datetime
 from functools import reduce
+import argparse
+import shutil
 
-binary_folder = Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_2/bins")
-files = [f for f in binary_folder.iterdir() if f.is_file()]
-files = sorted(files, key=lambda x: x.stat().st_size)
+def binary_input(binary_folder):
+    # global binaries, gt
+    binary_folder = Path(binary_folder)
+    files = [f for f in binary_folder.iterdir() if f.is_file()]
+    files = sorted(files, key=lambda x: x.stat().st_size)
 
-# binaries = files[:30]
-binaries = [Path("/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_1/bins/5.185.84.3.PRG")]
-gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in binaries]
+    binaries = files
+    # binaries = [Path("/app/Loadstar/Dataset/NS_1/bins/5.185.84.3.PRG")]
+    gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in binaries]
+
+    return binaries, gt
 
 results = []
 
@@ -26,6 +32,8 @@ def redisasemble(
     flg = True
 
     for prg_file, my_program in my_programs.items():
+        
+            # logger.info(f"Deleted existing file {prg_file}.")
         with pyghidra.open_program(prg_file, language='ARM:LE:32:v4') as flat_api:
             for block, emb in zip(my_program.blocks, my_program.embeddings):
                 if CodeBlock(ltn.Constant(emb)).value >= 0.5 and block.type == "Data" and not block.failed_disasm_flg:
@@ -36,10 +44,15 @@ def redisasemble(
 
     return flg
 
-if __name__ == "__main__":
-    # CodeBlock = None
+def main(binaries, gt):
     finish = False
     iteration = 0
+    # Check and delete any "{binary}_ghidra" folders if they exist
+    for prg_file in binaries:
+        ghidra_folder = f"{prg_file}_ghidra"
+        if Path(ghidra_folder).exists() and Path(ghidra_folder).is_dir():
+            shutil.rmtree(ghidra_folder)
+            logger.info(f"Deleted existing folder {ghidra_folder}")
 
     while not finish and iteration < 10:
         CodeBlock = None
@@ -98,3 +111,29 @@ if __name__ == "__main__":
 
         if CodeBlock: torch.save(CodeBlock.state_dict(), f"debug/{timestamp}/CodeBlock.pth")
         logger.info(f"Saved CodeBlock model to debug/{timestamp}/CodeBlock.pth")
+
+        return binaries[0], code_f1s, data_f1s
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Batch training and evaluation script.")
+    parser.add_argument('--single_training', type=str)
+    parser.add_argument('--batch_training', type=str)
+    parser.add_argument('--binary_folder', type=str, help='Path to the binary folder')
+    args = parser.parse_args()
+
+    if args.batch_training:
+        binaries, gt = binary_input(args.binary_folder)
+        main(binaries, gt)
+    elif args.single_training:
+        dataset = "ns_1" if "ns_1" in args.binary_folder else "ns_3" if "ns_3" in args.binary_folder else "ns_2"
+        result_file = open(f"{dataset}_results.txt", "w") 
+        for bin in os.listdir(args.binary_folder):
+            bin_name = Path(bin).stem
+            # if "ton_ld" not in bin_name:
+            #     continue
+            bin_file = Path(f"{args.binary_folder}/{bin}")
+            gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in [bin_file]]
+            if "ghidra" in bin or not os.path.exists(gt[0]):
+                continue
+
+            main([bin_file], gt)
