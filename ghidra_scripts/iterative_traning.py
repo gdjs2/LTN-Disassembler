@@ -55,7 +55,12 @@ def main(binaries, gt):
             logger.info(f"Deleted existing folder {ghidra_folder}")
 
     whole_start_time = datetime.now()
-    while not finish and iteration < 4:
+    # 10 iteration for ns3 | 4 iterations for ns1 and ns2
+    if "NS_3" in str(binaries[0]):
+        max_iterations = 10
+    else:
+        max_iterations = 4
+    while not finish and iteration < max_iterations:
         CodeBlock = None
         code_f1s, data_f1s = [], []
         iteration += 1
@@ -143,7 +148,7 @@ if __name__ == "__main__":
     result_file = open(f"{dataset}_results.txt", "w") 
     if args.batch_training:
         binaries, gt = binary_input(args.binary_folder)
-        result = main(binaries[:5], gt)
+        result = main(binaries, gt)
         result_file.write(f"{result}\n")
         result_file.close()
     elif args.single_training:
