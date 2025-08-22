@@ -91,8 +91,6 @@ def train(
 
 def evaluate(
         my_program: MyProgram,
-        CodeBlock: ltn.Predicate,
-        loss: float,
         label_file,
         result_path: Path,
         debug_flg: bool = False
@@ -112,9 +110,8 @@ def evaluate(
 
     for i, block in enumerate(my_program.blocks):
         block_opt_flg = True
-        code_flg = 0
-        if CodeBlock(ltn.Constant(my_program.embeddings[i])).value < loss:
-            code_flg = 1
+        # Use Ghidra's block type directly
+        code_flg = 0 if block.type == "Code" else 1
 
         addr = block.start_address
         while addr <= block.end_address:
@@ -154,11 +151,7 @@ def evaluate(
     if debug_flg:
         with open(result_path / "result.txt", "w") as f:
             for i, block in enumerate(my_program.blocks):
-                f.write(
-                    f"{repr(block)}\n"
-                    f"  Embedding : {my_program.embeddings[i]}\n"
-                    f"  CodeBlock : {CodeBlock(ltn.Constant(my_program.embeddings[i])).value.item()}\n\n"
-                )
+                f.write(f"{repr(block)}\n")
 
     elapsed = (datetime.now() - start).total_seconds()
     logger.info(
@@ -190,10 +183,10 @@ if __name__ == '__main__':
         CodeBlock, loss = train(my_program, None, 1000)
         time_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         # gt file and debug directory should be set here
+        # Note: This evaluate function is now for Ghidra baseline only
+        # For neural network evaluation, use a different function
         evaluate(
             my_program, 
-            CodeBlock, 
-            0.5, 
             "/home/zhaoqi.xiao/Projects/Loadstar/Dataset/NS_3/labeled/ton_ld.txt", 
             Path(f"./debug/{time_stamp}/ton_ld.app"), 
             debug_flg
