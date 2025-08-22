@@ -48,7 +48,6 @@ pure_eval==0.2.3
 pydot==4.0.0
 pyghidra==2.1.0
 Pygments==2.19.1
-pygraphviz==1.14
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
 pyvis==0.3.2
