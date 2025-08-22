@@ -55,7 +55,7 @@ def main(binaries, gt):
             logger.info(f"Deleted existing folder {ghidra_folder}")
 
     whole_start_time = datetime.now()
-    while not finish and iteration < 4:
+    while not finish and iteration < 1:
         CodeBlock = None
         code_f1s, data_f1s = [], []
         iteration += 1
@@ -74,8 +74,8 @@ def main(binaries, gt):
 
         # Small epoches is the epochs for training on each program
         # We will train on all binaries for a few epochs, which is large_epochs
-        small_epochs = 300
-        large_epochs = 3
+        small_epochs = 5000
+        large_epochs = 1
         logger.info(f"Start training with {len(my_programs)} programs, small epochs: {small_epochs}, large epochs: {large_epochs}")
 
         for i in range(large_epochs):
@@ -89,7 +89,7 @@ def main(binaries, gt):
             logger.error("CodeBlock is None, training failed.")
             raise RuntimeError("CodeBlock is None, training failed.")
 
-        finish = redisasemble(CodeBlock, my_programs)
+        # finish = redisasemble(CodeBlock, my_programs)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if CodeBlock is None:
@@ -117,7 +117,7 @@ def main(binaries, gt):
         "bin_name": prg_file.name,
         "code_f1": code_f1s,
         "data_f1": data_f1s,
-        "training_time": results["time"],
+        # "training_time": results["time"],
         "total_time": (datetime.now() - whole_start_time).total_seconds()
     }
 
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     result_file = open(f"{dataset}_results.txt", "w") 
     if args.batch_training:
         binaries, gt = binary_input(args.binary_folder)
-        result = main(binaries[:5], gt)
+        result = main(binaries, gt)
         result_file.write(f"{result}\n")
         result_file.close()
     elif args.single_training:

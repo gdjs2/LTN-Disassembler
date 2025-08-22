@@ -91,7 +91,7 @@ def create_graph(flat_api: FlatProgramAPI) -> nx.DiGraph:
     blocks.sort(key=lambda b: b.start_address)
     
     pseudo_disassemble_blocks(blocks, program)
-    blocks = split_data_blocks(blocks)
+    # blocks = split_data_blocks(blocks)
 
     fall_through_edges = _get_fallthrough_edges(blocks)
     call_edges = _get_call_edges(blocks, listing)

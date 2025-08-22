@@ -30,8 +30,8 @@ class MyProgram:
         # check_very_short(self.blocks)
 
         # Generate embeddings from the feature vectors
-        self.embeddings = generate_embeddings_from_feature_vector(self.blocks)
-        # self.embeddings = generate_random_embeddings(self.blocks)
+        # self.embeddings = generate_embeddings_from_feature_vector(self.blocks)
+        self.embeddings = generate_random_embeddings(self.blocks)
         self.block2idx = {block: idx for idx, block in enumerate(self.blocks)}
 
     def get_rel_vars(self: Self, edge_type: str) -> tuple[ltn.Variable, ltn.Variable] | tuple[None, None]:

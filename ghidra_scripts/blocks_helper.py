@@ -431,16 +431,16 @@ def get_feature_vector(
     """
     for block in blocks:
         block_size = block.end_address.subtract(block.start_address) + 1
-        feature_vec = [
+        feature_vec = [ # eval 2
             get_string_number(block, refs, listing) / block_size,
             get_num_constant(block) / block_size,
             get_transfer_number(block) / block_size,
             get_call_number(block) / block_size,
             get_instr_number(block) / block_size,
             get_arithmetic_number(block) / block_size,
-            get_zero_bytes_number(block, memory) / block_size,
+            get_zero_bytes_number(block, memory) / block_size,  # B
             get_def_use_number(block) / block_size,
-            get_printable_char_number(block, memory) / block_size,
+            get_printable_char_number(block, memory) / block_size, # A
         ]
         block.feature_vector = feature_vec
 
