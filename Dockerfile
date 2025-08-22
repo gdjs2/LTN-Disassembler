@@ -2,6 +2,10 @@
 # Use official Python 3.11 image
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
+# Build arguments for user ID and group ID
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
 # Install system dependencies for Python modules, gcc, and graphviz
 RUN apt-get update && apt-get install -y wget unzip \
     gcc \
@@ -27,7 +31,8 @@ RUN apt-get update && apt-get install -y wget unzip \
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
 # Create a regular user to avoid permission issues
-RUN useradd -m -s /bin/bash -u 1000 ltn && \
+RUN groupadd -g 1018 ltn && \
+    useradd -m -s /bin/bash -u 1017 -g 1018 ltn && \
     mkdir -p /app && \
     chown -R ltn:ltn /app && \
     # Give the user sudo access (optional, remove if not needed)
