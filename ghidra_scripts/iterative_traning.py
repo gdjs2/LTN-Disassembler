@@ -54,7 +54,8 @@ def main(binaries, gt):
             shutil.rmtree(ghidra_folder)
             logger.info(f"Deleted existing folder {ghidra_folder}")
 
-    while not finish and iteration < 10:
+    whole_start_time = datetime.now()
+    while not finish and iteration < 4:
         CodeBlock = None
         code_f1s, data_f1s = [], []
         iteration += 1
@@ -112,21 +113,41 @@ def main(binaries, gt):
         if CodeBlock: torch.save(CodeBlock.state_dict(), f"debug/{timestamp}/CodeBlock.pth")
         logger.info(f"Saved CodeBlock model to debug/{timestamp}/CodeBlock.pth")
 
-        return binaries[0], code_f1s, data_f1s
+    return {
+        "bin_name": prg_file.name,
+        "code_f1": code_f1s,
+        "data_f1": data_f1s,
+        "training_time": results["time"],
+        "total_time": (datetime.now() - whole_start_time).total_seconds()
+    }
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch training and evaluation script.")
     parser.add_argument('--single_training', type=str)
     parser.add_argument('--batch_training', type=str)
     parser.add_argument('--binary_folder', type=str, help='Path to the binary folder')
+    parser.add_argument('--test_binary', type=str, help='Path to the test binary')
     args = parser.parse_args()
 
+    if args.test_binary:
+        bin_file = Path(args.test_binary)
+        gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in [bin_file]]
+        if "ghidra" in bin_file.name or not os.path.exists(gt[0]):
+            logger.error(f"Test binary {bin_file} or its ground truth {gt[0]} does not exist.")
+        else:
+            result = main([bin_file], gt)
+            print(f"{result}\n")
+            
+
+    dataset = "ns_1" if "NS_1" in args.binary_folder else "ns_3" if "NS_3" in args.binary_folder else "ns_2"
+    result_file = open(f"{dataset}_results.txt", "w") 
     if args.batch_training:
         binaries, gt = binary_input(args.binary_folder)
-        main(binaries, gt)
+        result = main(binaries[:5], gt)
+        result_file.write(f"{result}\n")
+        result_file.close()
     elif args.single_training:
-        dataset = "ns_1" if "ns_1" in args.binary_folder else "ns_3" if "ns_3" in args.binary_folder else "ns_2"
-        result_file = open(f"{dataset}_results.txt", "w") 
+        result_list = []
         for bin in os.listdir(args.binary_folder):
             bin_name = Path(bin).stem
             # if "ton_ld" not in bin_name:
@@ -135,5 +156,14 @@ if __name__ == "__main__":
             gt = [Path(p).with_name(Path(p).name).with_suffix('.txt').as_posix().replace("/bins/", "/fixed_labeled/") for p in [bin_file]]
             if "ghidra" in bin or not os.path.exists(gt[0]):
                 continue
+        
+            try:
+                result = main([bin_file], gt)
+                print(result)
+                result_list.append(result)
+            except Exception as e:
+                logger.error(f"Error processing {bin_file}: {e}")
 
-            main([bin_file], gt)
+        for i in result_list:
+            result_file.write(f"{i}\n")
+        result_file.close()
